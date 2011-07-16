@@ -1,0 +1,17 @@
+{
+  "name": "Tweet Plus",
+  "version": "0.1",
+  "description": "Automatically post public messages to twitter..",
+  "browser_action": {
+    "default_icon": "icon.png"
+  },
+  "permissions": [
+    "http://api.twitter.com/"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://plus.google.com/*"],
+      "js": ["jquery-1.6.2.min.js", "content.js"]
+    }
+  ]
+}
