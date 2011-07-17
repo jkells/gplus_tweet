@@ -1,0 +1,10 @@
+.gplus-tweet-status-enabled, .gplus-tweet-status-disabled{
+    position: absolute;
+    right: 0px;
+    top: -25px;
+    color: #999999;
+}
+
+.gplus-tweet-invisible{
+    display: none;
+}

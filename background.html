@@ -1,0 +1,133 @@
+<html>
+<head></head>
+<body>
+<script type="text/javascript" src="lib/3rdparty/jquery.js"></script>
+<script type="text/javascript" src="lib/3rdparty/oauth.js"></script>
+<script type="text/javascript" src="lib/3rdparty/sha1.js"></script>
+<script type="text/javascript" src="lib/secret_keys.js"></script>
+<script type="text/javascript" src="lib/persistence.js"></script>
+<script type="text/javascript" src="lib/options_backend.js"></script>
+<script type="text/javascript" src="lib/persistence.js"></script>
+<script type="text/javascript" src="lib/twitter_lib.js"></script>
+<script type="text/javascript" src="lib/send_queue.js"></script>
+<script>
+
+function initializeJQueryOptions() {
+  $.ajaxSetup({
+    timeout: OptionsBackend.get('request_timeout')
+  });
+}
+initializeJQueryOptions();
+
+function TweetManager() {
+  this.oauthTokenData = Persistence.oauthTokenData();
+  this.oauthTokenService = Persistence.oauthTokenService();
+  this.authenticated = false;
+
+  var currentService = OptionsBackend.get('microblogging_service');
+  if(!this.oauthTokenService.val()) {
+    this.oauthTokenService.save(currentService);
+  } else if(currentService != this.oauthTokenService.val()) {
+    this.oauthTokenService.save(currentService);
+    this.oauthTokenData.remove();
+  }
+
+  var _this = this;
+
+  this.twitterBackend = new TwitterLib(
+    function onAuthenticated() {
+      _this.authenticated = true;
+    },
+    function(remainingHits, nextHitsReset, hourlyLimit) {
+    },
+    OptionsBackend.get('microblogging_service'),
+    OptionsBackend.get('base_url'),
+    OptionsBackend.get('base_oauth_url'),
+    OptionsBackend.get('base_signing_url'),
+    OptionsBackend.get('base_oauth_signing_url'),
+    OptionsBackend.get('base_search_url'),
+    this.oauthTokenData);
+
+  this.sendQueue = new SendQueue(this.twitterBackend);
+
+  this.shortenerAuth = {
+    token: OptionsBackend.get('shortener_token'),
+    tokenSecret: OptionsBackend.get('shortener_token_secret'),
+    tokenRequested: false,
+    callback: null,
+    longUrl: ''
+  };
+}
+
+TweetManager.prototype = {
+  clearWarning: function() {
+    this.warningMessage = null;
+  },
+
+  registerWarningsCallback: function(callback) {
+    this.warningsCallback = callback;
+    if(this.warningMessage && this.warningsCallback) {
+      this.warningsCallback(this.warningMessage);
+    }
+  },
+
+  enqueueTweet: function(msg, replyId) {
+    this.sendQueue.enqueueTweet(msg, replyId);
+  },
+
+  signout: function() {
+    this.oauthTokenData.remove();
+    TweetManager.instance = new TweetManager();
+    var views = chrome.extension.getViews({type: 'popup'});
+    if(views) {
+      for(var i = 0; i < views.length; ++i) {
+        views[i].close();
+      }
+    }
+    return (views && views.length > 0)
+  },
+
+  signoutAndReauthenticate: function(attribute) {
+    if(this.signout()) {
+      TweetManager.instance.twitterBackend.startAuthentication();
+    }
+  },
+
+  restart: function() {
+    initializeJQueryOptions();
+    TweetManager.instance = new TweetManager();
+  }
+};
+
+initializeExtension();
+function initializeExtension() {
+  TweetManager.instance = new TweetManager();
+  chrome.extension.onRequest.addListener(function(request, sender, sendResponse) {
+      if(request.sendTweet){
+          var message = request.sendTweet;
+          TweetManager.instance.enqueueTweet(message.text, null);
+          sendResponse({});
+          return;
+      }
+      
+      if(request.authenticated){
+          sendResponse({value: TweetManager.instance.authenticated});
+          return;
+      }
+
+      if(request.getAutoPost){
+          var savedValue = OptionsBackend.get('gplus_post');
+          sendResponse({autoPost:{value: savedValue}});
+          return;
+      }
+
+      if(request.setAutoPost){
+          OptionsBackend.saveOption('gplus_post', request.setAutoPost.value);
+          sendResponse({});
+          return;
+      }
+  });
+}
+</script>
+</body>
+</html>

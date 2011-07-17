@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link id="base_stylesheet" rel="stylesheet" type="text/css" href="css/base.css" />
+<title>GPlus Tweet</title>
+<script>
+var MAX_TWEET_SIZE = 140;
+var backgroundPage = chrome.extension.getBackgroundPage();
+
+var Persistence = backgroundPage.Persistence;
+var tweetManager = backgroundPage.TweetManager.instance;
+var twitterBackend = tweetManager.twitterBackend;
+var OptionsBackend = backgroundPage.OptionsBackend;
+var ImageService = backgroundPage.ImageService;
+var UploadManager = backgroundPage.UploadManager;
+
+var microbloggingService = OptionsBackend.get('microblogging_service');
+var TwitterLib;
+if(microbloggingService == 'twitter') {
+  TwitterLib = {
+    URLS: {
+      BASE: 'http://twitter.com/',
+      SEARCH: 'http://twitter.com/search?q='
+    }
+  };
+} else if(microbloggingService == 'identica') {
+  TwitterLib = {
+    URLS: {
+      BASE: 'http://identi.ca/',
+      SEARCH: 'http://identi.ca/search/notice?q='
+    }
+  };
+}
+
+if(backgroundPage.SecretKeys.hasValidKeys() && !twitterBackend.authenticated() && !twitterBackend.tokenRequested()) {
+  twitterBackend.startAuthentication();
+  window.close();
+}
+</script>
+
+<script type="text/javascript" src="lib/3rdparty/jquery.js"></script>
+<script type="text/javascript" src="lib/3rdparty/oauth.js"></script>
+<script type="text/javascript" src="lib/3rdparty/sha1.js"></script>
+<script type="text/javascript" src="lib/any_click.js"></script>
+<script>
+
+function openTab(tabUrl) {
+  var background = false;
+  if(event) {
+    if(event.button == 2) {
+      return true;
+    }
+    if(event.button == 1 || event.metaKey || event.ctrlKey) {
+      background = true;
+    }
+  }
+  if(tabUrl.match(/^www/i)) {
+    tabUrl = "http://" + tabUrl;
+  }
+  tabUrl.replace(/\W.*$/, "");
+  if(!background || Renderer.isNotification()) {
+    var obj =     chrome.tabs.create({
+      url: tabUrl,
+      selected: !background
+    });
+    if(background && obj) {
+      obj.blur();
+    }
+  } else {
+    chrome.tabs.create({
+      url: tabUrl,
+      selected: !background
+    });
+  }
+  return true;
+}
+
+$.ajaxSetup({
+  timeout: OptionsBackend.get('request_timeout')
+});
+
+var myOAuth = {
+  registerPin: function() {
+    var pinNumber = $("input[name='pin']").val();
+    $("#loading_oauth").show();
+    twitterBackend.oauthLib.getAccessToken(pinNumber, function(result) {
+      $("#loading_oauth").hide();
+      $("#enter_pin").hide();
+      if(result) {
+        initializeWorkspace();
+      } else {
+        var errMsg = twitterBackend.oauthLib.error;
+        $("#error_pin").show().html("Authentication Error");
+      }
+    });
+  },
+  requestNewToken: function() {
+    twitterBackend.startAuthentication();
+    window.close();
+  }
+};
+function signout() {
+  tweetManager.signout();
+}
+
+function showRateLimit() {
+  if(!OptionsBackend.get('show_hits_in_popup')) {
+    return;
+  }
+
+  var resetDateObj = new Date();
+  var nowmin = new Date().getMinutes();
+
+  $("#popup_footer").show();
+  if(tweetManager.twitterBackend) {
+    var hitsInfo = tweetManager.twitterBackend.remainingHitsInfo();
+    $("#twitter_hits_left").text("API: "+ hitsInfo[0] + "/" + hitsInfo[2] + ",");
+
+    resetDateObj.setTime(parseInt(hitsInfo[1], 10) * 1000);
+    var leftMins = resetDateObj.getMinutes() - nowmin;
+    if (leftMins < 0) leftMins = 60 + leftMins;
+    $("#twitter_hits_reset").text(leftMins + " mins to reset");
+  }
+}
+
+function initializeWorkspace() {
+  $(window).unload(function() {
+    if(tweetManager) {
+      tweetManager.registerWarningsCallback(null);
+    }
+  });
+  $("#workspace").show();
+
+  //Delay loading, improving responsiveness
+  setTimeout(function() {
+    showRateLimit();
+    $("#detach_img").attr("title", "Detach Window");
+    $("#options_page_link").anyClick(function() {
+      openTab(chrome.extension.getURL('options.html'));
+    });
+  }, 0);
+}
+
+$(function() {
+  if(!backgroundPage.SecretKeys.hasValidKeys()) {
+    Renderer.showError("Invalid Keys");
+    $("#workspace").show().height(300);
+    return;
+  }
+
+  if(!twitterBackend.authenticated()) {
+    if(twitterBackend.tokenRequested()) {
+      $("#enter_pin").show();
+    }
+    return;
+  }
+
+  initializeWorkspace();
+});
+</script>
+</head>
+<body>
+<div id="error" style="display: none;"></div>
+
+<div id="workspace" style="display: none;">
+  <div id="absolute_container">
+    <div id="warning">
+      <div class="img_area"><img src="img/warning.png" /></div>
+      <div class="dismiss" onclick="Renderer.hideMessage();">X</div>
+      <div class="content"></div>
+      <div style="clear: both;"></div>
+    </div>
+  </div>
+
+  <span class="header_link_left">
+    <a href="javascript:signout()"><span id="logout">Logout</span></a> |
+    <a href="#" id="options_page_link"><span id="options">Options</span></a>
+  </span>
+  <img src="img/loading.gif" id="loading" style="display: none;"/>
+  <img src="img/loading.gif" id="queue_loading" style="display: none;"/>
+  <div style="clear: both;"></div>
+</div>
+
+<div id="enter_pin" style="display: none;">
+  <img src="img/loading.gif" id="loading_oauth" style="display: none;"/>
+  <label for="pin">Twitter's OAuth Pin:</label>
+  <input type="text" name="pin"><br>
+  <input type="button" onclick="myOAuth.registerPin();" id="btnAuthorize" value="Authorize!">
+  <br><br>
+  <a href="javascript:myOAuth.requestNewToken();"><span id="newToken">Request New Token</span></a>
+</div>
+<div id="error_pin" style="display: none;">
+</div>
+
+<ul id="tab_context_menu" class="contextMenu">
+</ul>
+<div id="popup_footer">
+  <span id="twitter_hits_left"></span>
+  <span id="twitter_hits_reset"></span>
+</div>
+</body>
+</html>
