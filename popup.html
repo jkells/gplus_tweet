@@ -58,7 +58,7 @@ function openTab(tabUrl) {
     tabUrl = "http://" + tabUrl;
   }
   tabUrl.replace(/\W.*$/, "");
-  if(!background || Renderer.isNotification()) {
+  if(!background) {
     var obj =     chrome.tabs.create({
       url: tabUrl,
       selected: !background
@@ -143,8 +143,7 @@ function initializeWorkspace() {
 
 $(function() {
   if(!backgroundPage.SecretKeys.hasValidKeys()) {
-    Renderer.showError("Invalid Keys");
-    $("#workspace").show().height(300);
+    $("#invalid_keys").show();
     return;
   }
 
@@ -179,6 +178,10 @@ $(function() {
   <img src="img/loading.gif" id="loading" style="display: none;"/>
   <img src="img/loading.gif" id="queue_loading" style="display: none;"/>
   <div style="clear: both;"></div>
+</div>
+
+<div id="invalid_keys" style="display: none; width:300px;">
+    <p>You have no Twitter keys defined. You are most likely running a development build and have not placed your API keys in secret_key.js</p>
 </div>
 
 <div id="enter_pin" style="display: none;">
