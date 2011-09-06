@@ -14,7 +14,7 @@ function GPlusTweet()
 
             // This is the little green SHARE button that you actually click on.
             // Using these obfuscated class names is very brittle.
-            var shareButton = $('div.Ql td.n-Ja-e-A')
+            var shareButton = $('div.Qo td.f-G-b-C')
                 .find("div:first")
                 .not("div.gp-tweet-applied");
             
@@ -23,11 +23,11 @@ function GPlusTweet()
                 // Add a new class so we only do this once.
                 shareButton.addClass("gp-tweet-applied");
 
-                // The container for the share box is 5 levels up.
-                var container = shareButton.parent().parent().parent().parent().parent().parent();
+                // The container for the share box is 6 levels up.
+                var container = shareButton.parent().parent().parent().parent().parent().parent().parent();
 
                 // This is the text box that we type in.
-                var textBox = container.find("div.v-J-n-m-Gc");
+                var textBox = container.find("div.m-n-f-ba");
 
                 var statusElements = _this.addStatusContent(textBox.parent());
 
@@ -43,7 +43,6 @@ function GPlusTweet()
                     _this.saveAutoPostSetting();
                 });
 
-                //var countDown = textBox.parent().before("<div class='gp-tweet-countdown'>140</div>");
                 // For debugging we can colour the various elements.
                 //container.css("border","3px solid blue");
                 //shareButton.css("border","3px solid red");
